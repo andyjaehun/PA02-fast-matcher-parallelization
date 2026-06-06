@@ -1,0 +1,37 @@
+# PA02 최적화4: MakeLowCands 알고리즘 개선
+# make_cand 15→1번 + reserve()
+# cp cmake/CMakeLists_opt_lowcands.txt CMakeLists.txt && catkin_make -DCMAKE_BUILD_TYPE=Release
+# 측정: CPU baseline score_all 위에서 MakeLowCands만 교체하여 단독 효과 측정
+
+cmake_minimum_required(VERSION 3.0.2)
+project(cartographer_parallel)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES assignment_cpu_lib fast_matcher_lib
+  CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+
+include_directories(include ${catkin_INCLUDE_DIRS})
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# score_all: CPU 기본 버전 (MakeLowCands 단독 효과 측정용)
+add_library(assignment_cpu_lib src/score_all_pa02_final.cpp)
+target_link_libraries(assignment_cpu_lib ${catkin_LIBRARIES})
+
+# fast_matcher: MakeLowCands 최적화 버전 (타이머 포함)
+add_library(fast_matcher_lib src/fast_matcher_opt_lowcands.cpp)
+target_compile_options(fast_matcher_lib PRIVATE -O3)
+target_link_libraries(fast_matcher_lib assignment_cpu_lib ${catkin_LIBRARIES})
+
+add_executable(fast_correlative_node src/fast_correlative_node.cpp)
+target_link_libraries(fast_correlative_node fast_matcher_lib ${catkin_LIBRARIES})
+
+install(TARGETS assignment_cpu_lib fast_matcher_lib fast_correlative_node
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY launch maps bags DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

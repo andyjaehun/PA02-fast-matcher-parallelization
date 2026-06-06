@@ -1,0 +1,44 @@
+# PA02 최종 통합: 모든 최적화 적용
+# 1. MakeScans:    상수 호이스팅 + float + GCC pragma (5.8x)
+# 2. MakeLowCands: make_cand 1번 + reserve (4.3x)
+# 3. Score(coarse): GPU 배치화 15→1 호출 (4.95x)
+# 4. Branch Score: CPU 직접 계산 (5.1x)
+# cp cmake/CMakeLists_combined.txt CMakeLists.txt && catkin_make -DCMAKE_BUILD_TYPE=Release
+
+cmake_minimum_required(VERSION 3.8)
+project(cartographer_parallel LANGUAGES CXX CUDA)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES assignment_cpu_lib fast_matcher_lib
+  CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+
+link_directories(/usr/local/cuda/lib64)
+include_directories(include ${catkin_INCLUDE_DIRS})
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_53,code=sm_53")
+
+# score_all: GPU 배치 버전
+add_library(assignment_cpu_lib src/score_all_pa02_batch.cpp)
+set_source_files_properties(src/score_all_pa02_batch.cpp PROPERTIES LANGUAGE CUDA)
+target_link_libraries(assignment_cpu_lib ${catkin_LIBRARIES} cudart)
+
+# fast_matcher: 전체 최적화 통합
+add_library(fast_matcher_lib src/fast_matcher_combined.cpp)
+target_compile_options(fast_matcher_lib PRIVATE -O3 -march=native)
+target_link_libraries(fast_matcher_lib assignment_cpu_lib ${catkin_LIBRARIES})
+
+add_executable(fast_correlative_node src/fast_correlative_node.cpp)
+target_link_libraries(fast_correlative_node fast_matcher_lib ${catkin_LIBRARIES})
+
+install(TARGETS assignment_cpu_lib fast_matcher_lib fast_correlative_node
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY launch maps bags DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

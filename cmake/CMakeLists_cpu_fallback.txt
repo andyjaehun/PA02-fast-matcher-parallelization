@@ -1,0 +1,44 @@
+# PA02 최적화2: Branch CPU fallback
+# cands <= 32 → CPU 직접 계산 (GPU h2d/d2h overhead 제거)
+# cands >  32 → GPU score_all 유지
+# cp cmake/CMakeLists_cpu_fallback.txt CMakeLists.txt && catkin_make -DCMAKE_BUILD_TYPE=Release
+
+cmake_minimum_required(VERSION 3.8)
+project(cartographer_parallel LANGUAGES CXX CUDA)
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+find_package(OpenMP REQUIRED)
+
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES assignment_cpu_lib fast_matcher_lib
+  CATKIN_DEPENDS roscpp std_msgs sensor_msgs geometry_msgs nav_msgs visualization_msgs)
+
+link_directories(/usr/local/cuda/lib64)
+include_directories(include ${catkin_INCLUDE_DIRS})
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_53,code=sm_53")
+
+# score_all: PA01 GPU 버전 고정
+add_library(assignment_cpu_lib src/score_all_pa02_final.cpp)
+set_source_files_properties(src/score_all_pa02_final.cpp PROPERTIES LANGUAGE CUDA)
+target_link_libraries(assignment_cpu_lib ${catkin_LIBRARIES} cudart)
+
+# fast_matcher: CPU fallback 버전
+add_library(fast_matcher_lib src/fast_matcher_cpu_fallback.cpp)
+target_compile_options(fast_matcher_lib PRIVATE ${OpenMP_CXX_FLAGS})
+target_link_libraries(fast_matcher_lib assignment_cpu_lib ${catkin_LIBRARIES}
+                      ${OpenMP_CXX_FLAGS})
+
+add_executable(fast_correlative_node src/fast_correlative_node.cpp)
+target_link_libraries(fast_correlative_node fast_matcher_lib ${catkin_LIBRARIES})
+
+install(TARGETS assignment_cpu_lib fast_matcher_lib fast_correlative_node
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY launch maps bags DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
