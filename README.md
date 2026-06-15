@@ -175,7 +175,7 @@ if (cand->size() <= 32) {
 
 ```bash
 # 1. 파일 수정 (필요시)
-nano ~/catkin_ws/src/cartographer_parallel/src/score_all_pa02_batch.cpp
+nano ~/catkin_ws/src/cartographer_parallel/src/PA02/score_all_pa02_batch.cpp
 
 # 2. CMakeLists 교체 후 빌드
 cp cmake/CMakeLists_combined.txt CMakeLists.txt
